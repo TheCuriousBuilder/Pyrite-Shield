@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v6.1.5 Controller (AdBlock-like UI)
+// Pyrite Shield Controller (AdBlock-like UI)
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -18,12 +18,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const optionsLink = $('optionsLink');
   const whitelistLink = $('whitelistLink');
   const supportLink = $('supportLink');
+  const supportMenu = $('supportMenu');
+  const supportBugBtn = $('supportBug');
+  const supportSiteBrokenBtn = $('supportSiteBroken');
+  const supportFeatureBtn = $('supportFeature');
   const clearStatsBtn = $('clearStatsBtn');
+  const brandVersionEl = $('brandVersion');
+  const footerBrandEl = $('footerBrand');
 
   let toastTimeout = null;
   let zapperActive = false;
   let currentHostname = '';
   let isSiteWhitelisted = false;
+
+  const extVersion = chrome.runtime.getManifest().version;
+  brandVersionEl.textContent = `v${extVersion}`;
+  footerBrandEl.textContent = `✦ Pyrite Shield v${extVersion}`;
 
   function showToast(msg, dur = 2000) {
     if (toastTimeout) clearTimeout(toastTimeout);
@@ -86,18 +96,14 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadState() {
     try {
       const enabled = await chrome.declarativeNetRequest.getEnabledRulesets();
-      // Consider the blocker "on" if any of our rulesets are enabled, so a
-      // partially-enabled state (e.g. mid-toggle) still reads correctly.
       setToggleUI(RULESETS.some((id) => enabled.includes(id)));
 
-      // Get current tab info
       chrome.runtime.sendMessage({ action: 'getCurrentSiteInfo' }, (siteInfo) => {
         if (siteInfo) {
           updateSiteInfo(siteInfo.hostname, siteInfo.isWhitelisted, siteInfo.tabBlocked);
         }
       });
 
-      // Get stats
       chrome.runtime.sendMessage({ action: 'getStats' }, (stats) => {
         if (stats) {
           totalBlockedEl.textContent = fmt(stats.totalBlocked || 0);
@@ -124,7 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('⛔ Blocker disabled');
       }
       setToggleUI(enable);
-      // Notify content script
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]) {
           chrome.tabs.sendMessage(tabs[0].id, { action: 'toggleBlocker', enabled: enable }).catch(() => {});
@@ -166,7 +171,6 @@ document.addEventListener('DOMContentLoaded', () => {
       zapperBtn.classList.add('zapper-active');
       zapperBtn.textContent = '✂️ Zapping... (ESC)';
       showToast('✂️ Click any element to block it. Press ESC to exit.');
-      // Send message to content script
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]) {
           chrome.tabs.sendMessage(tabs[0].id, { action: 'enableZapper' }).catch(() => {
@@ -194,7 +198,6 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('🚩 Ad reported. Thank you!');
   });
 
-  // Footer links
   optionsLink.addEventListener('click', (e) => {
     e.preventDefault();
     chrome.runtime.openOptionsPage();
@@ -205,9 +208,102 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.runtime.openOptionsPage();
   });
 
+  const GITHUB_REPO = 'TheCuriousBuilder/Pyrite-Shield';
+
+  function openGithubIssue({ title, body, label }) {
+    const params = new URLSearchParams({ title, body });
+    if (label) params.set('labels', label);
+    chrome.tabs.create({
+      url: `https://github.com/${GITHUB_REPO}/issues/new?${params.toString()}`
+    });
+    supportMenu.classList.remove('open');
+  }
+
   supportLink.addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: 'https://github.com/TheCuriousBuilder/Pyrite-Shield/issues' });
+    e.stopPropagation();
+    supportMenu.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (supportMenu.classList.contains('open') && !supportMenu.contains(e.target) && e.target !== supportLink) {
+      supportMenu.classList.remove('open');
+    }
+  });
+
+  supportBugBtn.addEventListener('click', () => {
+    openGithubIssue({
+      label: 'bug',
+      title: '[Bug] ',
+      body:
+`**Describe the bug**
+
+
+**Steps to reproduce**
+1. 
+2. 
+3. 
+
+**Expected behavior**
+
+
+**Actual behavior**
+
+
+**Screenshots / console log**
+(paste here, or drag & drop an image)
+
+---
+Extension version: ${extVersion}
+Site (if relevant): 
+Browser:`
+    });
+  });
+
+  supportSiteBrokenBtn.addEventListener('click', () => {
+    openGithubIssue({
+      label: 'site-broken',
+      title: '[Site Broken] ',
+      body:
+`**Website URL**
+
+
+**What's broken?**
+(e.g. page won't load, a button doesn't work, video won't play)
+
+
+**Did it work before installing/updating Pyrite Shield?**
+
+
+**Console log**
+(open DevTools → Console, copy everything, paste here)
+
+
+**Network tab (optional but helpful)**
+(any requests showing "blocked" or a failed status around the issue)
+
+---
+Extension version: ${extVersion}`
+    });
+  });
+
+  supportFeatureBtn.addEventListener('click', () => {
+    openGithubIssue({
+      label: 'enhancement',
+      title: '[Feature Request] ',
+      body:
+`**What would you like Pyrite Shield to do?**
+
+
+**Why would this help?**
+
+
+**Additional context**
+(mockups, links, examples from other extensions, etc.)
+
+---
+Extension version: ${extVersion}`
+    });
   });
 
   if (clearStatsBtn) {
@@ -228,7 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Poll for updates
   async function poll() {
     try {
       chrome.runtime.sendMessage({ action: 'getStats' }, (s) => {
@@ -250,6 +345,5 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('unload', () => clearInterval(pi));
 
   loadState();
-  console.log('[Pyrite Shield v6.1.5] Popup ready');
+  console.log(`[Pyrite Shield v${extVersion}] Popup ready`);
 });
-

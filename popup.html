@@ -54,7 +54,18 @@
       box-shadow: 0 2px 8px rgba(229,62,62,0.3);
     }
     .brand-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
-    .brand-version { font-size: 10px; color: var(--text-muted); display: block; }
+    .brand-version {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-primary);
+      background: var(--bg-hover);
+      border: 1px solid var(--border-color);
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 10px;
+      margin-top: 2px;
+      letter-spacing: 0.02em;
+    }
     .toggle-wrap {
       display: flex;
       align-items: center;
@@ -298,6 +309,53 @@
       border-color: var(--accent);
       color: #fff;
     }
+    .support-menu-wrap {
+      position: relative;
+      display: inline-flex;
+    }
+    .support-menu {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      right: 0;
+      min-width: 190px;
+      background: var(--bg-secondary, #1e2530);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+      padding: 6px;
+      z-index: 50;
+    }
+    .support-menu.open {
+      display: block;
+    }
+    .support-menu button {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .support-menu button:hover {
+      background: var(--bg-hover);
+      color: #fc8181;
+    }
+    .support-menu .support-menu-desc {
+      display: block;
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--text-secondary, #9ca3af);
+      margin-top: 1px;
+    }
     .zapper-active {
       animation: pulse 1s infinite;
       border-color: var(--accent) !important;
@@ -362,7 +420,7 @@
       <div class="brand-icon">✦</div>
       <div>
         <span class="brand-name">Pyrite Shield</span>
-        <span class="brand-version">v6.1.5</span>
+        <span class="brand-version" id="brandVersion">v…</span>
       </div>
     </div>
     <div class="toggle-wrap">
@@ -409,11 +467,27 @@
   </div>
 
   <div class="footer">
-    <span class="footer-brand">✦ Pyrite Shield v6.1.5</span>
+    <span class="footer-brand" id="footerBrand">✦ Pyrite Shield</span>
     <div class="footer-links">
       <a href="#" id="optionsLink" title="Open settings">Options</a>
       <a href="#" id="whitelistLink" title="Manage whitelist">Whitelist</a>
-      <a href="#" id="supportLink" title="Report issues on GitHub">Support</a>
+      <div class="support-menu-wrap">
+        <a href="#" id="supportLink" title="Report issues on GitHub">Support</a>
+        <div class="support-menu" id="supportMenu">
+          <button type="button" id="supportBug">
+            🐞 Bug found
+            <span class="support-menu-desc">Something isn't working right</span>
+          </button>
+          <button type="button" id="supportSiteBroken">
+            🌐 Website broken
+            <span class="support-menu-desc">Blocker breaks a site's function</span>
+          </button>
+          <button type="button" id="supportFeature">
+            💡 Suggest a feature
+            <span class="support-menu-desc">Request something new</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -421,4 +495,3 @@
   <script src="popup.js"></script>
 </body>
 </html>
-
