@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v6.1.5 Ad Blocker (UI-safe)
+// Pyrite Shield v7.0.1 Ad Blocker (UI-safe)
 // Skips ads without touching profile / Create / menus
 // ============================================================
 (function () {
@@ -159,5 +159,5 @@
     tick();
   }
 
-  console.log('[Pyrite] YouTube ad blocker v6.1.5 active');
+  console.log('[Pyrite] YouTube ad blocker v7.0.1 active');
 })();

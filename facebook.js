@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v6.1.5 Sponsored Content Blocker
+// Pyrite Shield v7.0.1 Sponsored Content Blocker
 // ============================================================
 (function () {
   'use strict';
@@ -69,5 +69,5 @@
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  console.log('[Pyrite] Facebook ad blocker v6.1.5 active');
+  console.log('[Pyrite] Facebook ad blocker v7.0.1 active');
 })();

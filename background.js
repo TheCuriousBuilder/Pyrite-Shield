@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v6.1.5 Service Worker
+// Pyrite Shield v7.0.1 Service Worker
 // AdBlock-like features with auto-updating filter lists
 // ============================================================
 
@@ -70,6 +70,10 @@ const FILTER_LIST_URLS = {
 };
 
 let totalBlockedCount = 0;
+let historyPaused = false;
+let historyPauseStart = 0; // ms since epoch
+let extensionHistory = []; // { url, title, time }
+
 let sessionBlockedCount = 0;
 let blockedDomains = new Map();
 let whitelist = new Set();
@@ -335,6 +339,105 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 // ============================================================
 // Message Handler
 // ============================================================
+
+
+// ============================================================
+// History pause / private extension log
+// Chrome always records visits briefly. While paused we:
+//  1) log URL into extensionHistory (shown in popup)
+//  2) delete that URL from Chrome history immediately (onVisited)
+//  3) on resume, deleteRange as a safety net
+// ============================================================
+const EXT_HISTORY_KEY = 'extensionHistory';
+const EXT_HISTORY_MAX = 500;
+
+async function loadHistoryPauseState() {
+  try {
+    const r = await chrome.storage.local.get(['historyPaused', 'historyPauseStart', EXT_HISTORY_KEY]);
+    historyPaused = r.historyPaused === true;
+    historyPauseStart = r.historyPauseStart || 0;
+    extensionHistory = Array.isArray(r[EXT_HISTORY_KEY]) ? r[EXT_HISTORY_KEY] : [];
+  } catch (_) {}
+}
+
+async function saveExtensionHistory() {
+  try {
+    await chrome.storage.local.set({ [EXT_HISTORY_KEY]: extensionHistory.slice(0, EXT_HISTORY_MAX) });
+  } catch (_) {}
+}
+
+function pushExtensionHistory(url, title) {
+  if (!url) return;
+  if (/^(chrome|chrome-extension|about|edge|devtools):/i.test(url)) return;
+  extensionHistory.unshift({ url, title: title || url, time: Date.now() });
+  if (extensionHistory.length > EXT_HISTORY_MAX) extensionHistory.length = EXT_HISTORY_MAX;
+  saveExtensionHistory();
+}
+
+async function eraseChromeVisit(url) {
+  if (!url) return;
+  try { await chrome.history.deleteUrl({ url }); } catch (_) {}
+}
+
+if (chrome.history && chrome.history.onVisited) {
+  chrome.history.onVisited.addListener((item) => {
+    if (!historyPaused) return;
+    const url = item.url || '';
+    pushExtensionHistory(url, item.title || '');
+    eraseChromeVisit(url);
+  });
+}
+
+async function setHistoryPaused(paused) {
+  if (paused) {
+    historyPaused = true;
+    historyPauseStart = Date.now();
+    await chrome.storage.local.set({ historyPaused: true, historyPauseStart });
+    return { success: true, paused: true, start: historyPauseStart };
+  }
+  const start = historyPauseStart || Date.now();
+  const end = Date.now() + 2000;
+  historyPaused = false;
+  await chrome.storage.local.set({ historyPaused: false, historyPauseStart: 0 });
+  try {
+    await chrome.history.deleteRange({ startTime: start, endTime: end });
+  } catch (e) {
+    return { success: false, error: e.message || String(e), paused: false };
+  }
+  historyPauseStart = 0;
+  return { success: true, paused: false };
+}
+
+async function clearBrowserHistory(mode) {
+  const end = Date.now() + 1000;
+  if (mode === 'all') {
+    try {
+      await chrome.history.deleteAll();
+      return { success: true, mode: 'all' };
+    } catch (e) {
+      return { success: false, error: e.message || String(e) };
+    }
+  }
+  let start = Date.now() - 60 * 60 * 1000;
+  if (mode === 'today') {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    start = d.getTime();
+  }
+  try {
+    await chrome.history.deleteRange({ startTime: start, endTime: end });
+    return { success: true, mode: mode || 'hour' };
+  } catch (e) {
+    return { success: false, error: e.message || String(e) };
+  }
+}
+
+async function clearExtensionHistory() {
+  extensionHistory = [];
+  await saveExtensionHistory();
+  return { success: true };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
     case 'getStats':
@@ -476,6 +579,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       return true;
     }
+    case 'getHistoryPauseState':
+      sendResponse({ paused: historyPaused, start: historyPauseStart, count: extensionHistory.length });
+      break;
+    case 'getExtensionHistory':
+      sendResponse({ items: extensionHistory.slice(0, 100) });
+      break;
+    case 'clearExtensionHistory': {
+      clearExtensionHistory().then((r) => sendResponse(r)).catch((e) => sendResponse({ success: false, error: e.message }));
+      return true;
+    }
+    case 'setHistoryPaused': {
+      setHistoryPaused(message.paused === true)
+        .then((r) => sendResponse(r))
+        .catch((e) => sendResponse({ success: false, error: e.message }));
+      return true;
+    }
+    case 'clearBrowserHistory': {
+      clearBrowserHistory(message.mode || 'hour')
+        .then((r) => sendResponse(r))
+        .catch((e) => sendResponse({ success: false, error: e.message }));
+      return true;
+    }
     default:
       sendResponse({ error: 'Unknown action' });
   }
@@ -486,11 +611,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Initialization
 // ============================================================
 async function initialize() {
+  await loadHistoryPauseState();
   await loadState();
   await enableAllRulesets();
   await syncWhitelistRules();
   await updateFilterLists();
-  console.log(`[Pyrite Shield v6.1.5] 🛡️ Loaded: ${totalBlockedCount} blocked, ${whitelist.size} whitelisted sites, ${RULESETS.length} rulesets`);
+  console.log(`[Pyrite Shield v7.0.1] 🛡️ Loaded: ${totalBlockedCount} blocked, ${whitelist.size} whitelisted sites, ${RULESETS.length} rulesets`);
 }
 
 initialize();

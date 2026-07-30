@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v6.1.5 Module
+// Pyrite Shield v7.0.1 Module
 // BUG FIX: permanent header "Advertisement - opens new tab"
 // was matching forever → sought the real movie to the end.
 // Now only reacts to "Loading Advertisement..." and only seeks

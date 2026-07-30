@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Pyrite Shield",
-  "version": "6.1.5",
-  "version_name": "6.1.5",
+  "version": "7.0.1",
+  "version_name": "7.0.1",
   "author": "Pyrite Security Team",
   "description": "Ultimate ad blocker: ads, trackers, cryptominers, annoyances & anti-adblock. Safe on legitimate sites (ChatGPT, Google Accounts, banks, SaaS). Fast YouTube/Twitch skip.",
   "homepage_url": "https://github.com/pyrite-shield",
@@ -25,7 +25,8 @@
     "tabs",
     "unlimitedStorage",
     "webNavigation",
-    "webRequest"
+    "webRequest",
+    "history"
   ],
   "host_permissions": [
     "<all_urls>"

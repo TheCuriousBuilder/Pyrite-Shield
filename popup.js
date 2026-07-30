@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield Controller (AdBlock-like UI)
+// Pyrite Shield v7.0.1 Controller (AdBlock-like UI)
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,7 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const siteStatusBadge = $('siteStatusBadge');
   const pauseSiteBtn = $('pauseSiteBtn');
   const zapperBtn = $('zapperBtn');
+  const undoZapBtn = $('undoZapBtn');
   const reportBtn = $('reportBtn');
+  const reportMenu = $('reportMenu');
+  const reportAdBtn = $('reportAdBtn');
+  const reportUnsafeBtn = $('reportUnsafeBtn');
   const toastEl = $('toast');
   const optionsLink = $('optionsLink');
   const whitelistLink = $('whitelistLink');
@@ -23,6 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const supportSiteBrokenBtn = $('supportSiteBroken');
   const supportFeatureBtn = $('supportFeature');
   const clearStatsBtn = $('clearStatsBtn');
+  const historyPauseBtn = $('historyPauseBtn');
+  const clearHistoryBtn = $('clearHistoryBtn');
+  const historyHint = $('historyHint');
+  const clearExtHistoryBtn = $('clearExtHistoryBtn');
+  const extHistoryList = $('extHistoryList');
   const brandVersionEl = $('brandVersion');
   const footerBrandEl = $('footerBrand');
 
@@ -96,14 +105,18 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadState() {
     try {
       const enabled = await chrome.declarativeNetRequest.getEnabledRulesets();
+      // Consider the blocker "on" if any of our rulesets are enabled, so a
+      // partially-enabled state (e.g. mid-toggle) still reads correctly.
       setToggleUI(RULESETS.some((id) => enabled.includes(id)));
 
+      // Get current tab info
       chrome.runtime.sendMessage({ action: 'getCurrentSiteInfo' }, (siteInfo) => {
         if (siteInfo) {
           updateSiteInfo(siteInfo.hostname, siteInfo.isWhitelisted, siteInfo.tabBlocked);
         }
       });
 
+      // Get stats
       chrome.runtime.sendMessage({ action: 'getStats' }, (stats) => {
         if (stats) {
           totalBlockedEl.textContent = fmt(stats.totalBlocked || 0);
@@ -130,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('⛔ Blocker disabled');
       }
       setToggleUI(enable);
+      // Notify content script
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]) {
           chrome.tabs.sendMessage(tabs[0].id, { action: 'toggleBlocker', enabled: enable }).catch(() => {});
@@ -171,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
       zapperBtn.classList.add('zapper-active');
       zapperBtn.textContent = '✂️ Zapping... (ESC)';
       showToast('✂️ Click any element to block it. Press ESC to exit.');
+      // Send message to content script
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]) {
           chrome.tabs.sendMessage(tabs[0].id, { action: 'enableZapper' }).catch(() => {
@@ -192,12 +207,61 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  reportBtn.addEventListener('click', () => {
-    if (!currentHostname) return;
-    chrome.runtime.sendMessage({ action: 'reportAd', url: 'https://' + currentHostname, hostname: currentHostname });
-    showToast('🚩 Ad reported. Thank you!');
+  undoZapBtn.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'unblockLastElement' }).then((res) => {
+          showToast(res && res.restored ? '↩️ Element restored' : 'Nothing to undo on this page');
+        }).catch(() => {
+          showToast('❌ Refresh the page to use undo');
+        });
+      }
+    });
   });
 
+  reportBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    reportMenu.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (reportMenu.classList.contains('open') && !reportMenu.contains(e.target) && e.target !== reportBtn) {
+      reportMenu.classList.remove('open');
+    }
+  });
+
+  function logReportLocally() {
+    if (!currentHostname) return;
+    chrome.runtime.sendMessage({ action: 'reportAd', url: 'https://' + currentHostname, hostname: currentHostname });
+  }
+
+  async function copyCurrentUrl() {
+    if (!currentHostname) return false;
+    try {
+      await navigator.clipboard.writeText('https://' + currentHostname);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  reportAdBtn.addEventListener('click', async () => {
+    logReportLocally();
+    const copied = await copyCurrentUrl();
+    chrome.tabs.create({ url: 'https://support.google.com/ads/troubleshooter/4578507?hl=en' });
+    reportMenu.classList.remove('open');
+    showToast(copied ? '🚩 URL copied — paste into the form' : '🚩 Opening Google\'s ad report form…');
+  });
+
+  reportUnsafeBtn.addEventListener('click', async () => {
+    logReportLocally();
+    const copied = await copyCurrentUrl();
+    chrome.tabs.create({ url: 'https://safebrowsing.google.com/safebrowsing/report_phish/?hl=en' });
+    reportMenu.classList.remove('open');
+    showToast(copied ? '⚠️ URL copied — paste into the form' : '⚠️ Opening Safe Browsing report form…');
+  });
+
+  // Footer links
   optionsLink.addEventListener('click', (e) => {
     e.preventDefault();
     chrome.runtime.openOptionsPage();
@@ -306,6 +370,99 @@ Extension version: ${extVersion}`
     });
   });
 
+
+  // ---- History pause / clear ----
+
+  function renderExtHistory(items) {
+    if (!extHistoryList) return;
+    const list = Array.isArray(items) ? items : [];
+    if (!list.length) {
+      extHistoryList.innerHTML = '<li class="domain-empty">No private session visits yet</li>';
+      return;
+    }
+    extHistoryList.innerHTML = list.slice(0, 40).map((it) => {
+      const u = esc(it.url || '');
+      const t = esc((it.title || it.url || '').slice(0, 60));
+      const when = it.time ? new Date(it.time).toLocaleTimeString() : '';
+      return `<li title="${u}"><span>${t}</span><span class="count">${when}</span></li>`;
+    }).join('');
+  }
+
+  function refreshExtHistory() {
+    chrome.runtime.sendMessage({ action: 'getExtensionHistory' }, (r) => {
+      if (!chrome.runtime.lastError && r) renderExtHistory(r.items || []);
+    });
+  }
+
+  let historyPausedLocal = false;
+
+  function setHistoryPauseUI(paused) {
+    historyPausedLocal = !!paused;
+    if (!historyPauseBtn) return;
+    if (paused) {
+      historyPauseBtn.textContent = '▶ Resume history';
+      historyPauseBtn.classList.add('active-pause');
+      if (historyHint) historyHint.textContent = 'Pause ON — visits leave Chrome history immediately and appear in the extension log below.';
+    } else {
+      historyPauseBtn.textContent = '⏸ Pause history';
+      historyPauseBtn.classList.remove('active-pause');
+      if (historyHint) historyHint.textContent = 'While paused, sites are stripped from Chrome history right away and listed only below.';
+    }
+  }
+
+  chrome.runtime.sendMessage({ action: 'getHistoryPauseState' }, (r) => {
+    if (!chrome.runtime.lastError && r) setHistoryPauseUI(r.paused);
+  });
+  refreshExtHistory();
+
+  historyPauseBtn?.addEventListener('click', () => {
+    const next = !historyPausedLocal;
+    chrome.runtime.sendMessage({ action: 'setHistoryPaused', paused: next }, (res) => {
+      if (chrome.runtime.lastError || !res || res.success === false) {
+        showToast(res?.error || 'History pause failed (need History permission)');
+        return;
+      }
+      setHistoryPauseUI(res.paused);
+      showToast(res.paused ? 'History pause ON' : 'History pause OFF');
+      refreshExtHistory();
+    });
+  });
+
+  clearExtHistoryBtn?.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'clearExtensionHistory' }, (res) => {
+      if (chrome.runtime.lastError || !res || res.success === false) {
+        showToast('Failed to clear extension log');
+        return;
+      }
+      renderExtHistory([]);
+      showToast('Extension history log cleared');
+    });
+  });
+
+  clearHistoryBtn?.addEventListener('click', () => {
+    const choice = window.prompt(
+      'Clear Chrome browsing history?\n\nType one of:\n  hour  — last 1 hour\n  today — since midnight\n  all   — entire history\n\nCancel to abort.',
+      'hour'
+    );
+    if (choice == null) return;
+    const mode = String(choice).trim().toLowerCase();
+    if (!['hour', 'today', 'all'].includes(mode)) {
+      showToast('Use hour, today, or all');
+      return;
+    }
+    if (mode === 'all' && !window.confirm('Delete ALL browsing history? This cannot be undone.')) {
+      return;
+    }
+    chrome.runtime.sendMessage({ action: 'clearBrowserHistory', mode }, (res) => {
+      if (chrome.runtime.lastError || !res || res.success === false) {
+        showToast(res?.error || 'Clear history failed');
+        return;
+      }
+      showToast(mode === 'all' ? 'All history cleared' : mode === 'today' ? 'Today’s history cleared' : 'Last hour cleared');
+    });
+  });
+
+
   if (clearStatsBtn) {
     clearStatsBtn.addEventListener('click', () => {
       chrome.runtime.sendMessage({ action: 'resetAllStats' }, (res) => {
@@ -324,8 +481,10 @@ Extension version: ${extVersion}`
     });
   }
 
+  // Poll for updates
   async function poll() {
     try {
+      if (historyPausedLocal) refreshExtHistory();
       chrome.runtime.sendMessage({ action: 'getStats' }, (s) => {
         if (s) {
           totalBlockedEl.textContent = fmt(s.totalBlocked || 0);
