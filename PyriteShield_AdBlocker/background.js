@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v7.5.8 Service Worker
+// Pyrite Shield v7.8.2 Service Worker
 // AdBlock-like features with auto-updating filter lists
 // ============================================================
 
@@ -641,7 +641,7 @@ async function initialize() {
   await enableAllRulesets();
   await syncWhitelistRules();
   await updateFilterLists();
-  console.log(`[Pyrite Shield v7.5.8] 🛡️ Loaded: ${totalBlockedCount} blocked, ${whitelist.size} whitelisted sites, ${RULESETS.length} rulesets`);
+  console.log(`[Pyrite Shield v7.8.2] 🛡️ Loaded: ${totalBlockedCount} blocked, ${whitelist.size} whitelisted sites, ${RULESETS.length} rulesets`);
 }
 
 initialize();

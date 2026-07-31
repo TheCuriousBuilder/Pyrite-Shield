@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v7.5.8 Ad Blocker
+// Pyrite Shield v7.8.2 Ad Blocker
 // ============================================================
 (function () {
   'use strict';
@@ -76,5 +76,5 @@
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  console.log('[Pyrite] Twitch ad blocker v7.5.8 active');
+  console.log('[Pyrite] Twitch ad blocker v7.8.2 active');
 })();

@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v7.5.8 Site Ad Blocker
+// Pyrite Shield v7.8.2 Site Ad Blocker
 // ============================================================
 (function() {
   'use strict';

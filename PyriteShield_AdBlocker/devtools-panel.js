@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v7.5.8 Panel Script
+// Pyrite Shield v7.8.2 Panel Script
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   const $ = (id) => document.getElementById(id);

@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v7.5.8 Page
+// Pyrite Shield v7.8.2 Page
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {

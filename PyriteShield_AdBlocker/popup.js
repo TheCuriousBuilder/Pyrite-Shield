@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v7.5.8 Controller (AdBlock-like UI)
+// Pyrite Shield v7.8.2 Controller (AdBlock-like UI)
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {

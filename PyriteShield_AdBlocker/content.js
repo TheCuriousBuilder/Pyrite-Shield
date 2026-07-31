@@ -1,5 +1,5 @@
 // ============================================================
-// Pyrite Shield v7.5.8 Ad Blocker (Ultimate Edition)
+// Pyrite Shield v7.8.2 Ad Blocker (Ultimate Edition)
 // Blocks ads on ALL websites including YouTube, Twitch, Facebook, Netflix
 // ============================================================
 (function() {
@@ -870,7 +870,7 @@
   }
 
   function init() {
-    console.log('[Pyrite] 🛡️ Ad blocking engine v7.5.8 active on:', hostname);
+    console.log('[Pyrite] 🛡️ Ad blocking engine v7.8.2 active on:', hostname);
 
     setupAntiAdblockBypass();
     blockAdIframes();
