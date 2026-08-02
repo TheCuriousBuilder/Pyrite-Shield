@@ -1,0 +1,15 @@
+#psai-fab{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:44px;height:44px;border-radius:50%;border:none;background:#e53e3e;color:#fff;font-size:18px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+#psai-fab:hover{background:#c53030}
+#psai-root{position:fixed;right:16px;bottom:68px;z-index:2147483646;display:none;width:min(380px,calc(100vw - 24px));font-family:system-ui,sans-serif}
+#psai-root.open{display:block}
+#psai-root .psai-panel{background:#1a1a2e;color:#e8e8e8;border:1px solid #2d3748;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.45);overflow:hidden}
+#psai-root .psai-hd{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #2d3748;background:#12121f}
+#psai-root .psai-x{background:transparent;border:none;color:#9a9ab0;font-size:20px;cursor:pointer}
+#psai-root .psai-modes{display:flex;flex-wrap:wrap;gap:6px;padding:10px}
+#psai-root .psai-modes button{font-size:11px;padding:6px 8px;border-radius:8px;border:1px solid #2d3748;background:#0f0f1a;color:#e8e8e8;cursor:pointer}
+#psai-root .psai-modes button:hover{border-color:#e53e3e;color:#fc8181}
+#psai-root .psai-ask{width:calc(100% - 20px);margin:0 10px 8px;border-radius:8px;border:1px solid #2d3748;background:#0f0f1a;color:#e8e8e8;padding:8px;font-size:12px;resize:vertical}
+#psai-root .psai-out{margin:0 10px;padding:10px;min-height:120px;max-height:280px;overflow:auto;background:#0f0f1a;border-radius:8px;border:1px solid #2d3748;font-size:13px;line-height:1.45;white-space:pre-wrap}
+#psai-root .psai-actions{display:flex;align-items:center;gap:10px;padding:10px}
+#psai-root .psai-copy{border:none;background:#e53e3e;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600}
+#psai-root .psai-status{font-size:11px;color:#9a9ab0}

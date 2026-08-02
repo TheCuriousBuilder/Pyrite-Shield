@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PyriteShield AI — Options</title>
+  <style>
+    body{font-family:system-ui,sans-serif;background:#0f0f1a;color:#e8e8e8;max-width:640px;margin:32px auto;padding:0 16px;line-height:1.5}
+    label{display:block;font-size:13px;margin:14px 0 6px;color:#9a9ab0}
+    input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #2d3748;background:#1a1a2e;color:#e8e8e8;box-sizing:border-box}
+    button{margin-top:16px;padding:10px 16px;border:none;border-radius:8px;background:#e53e3e;color:#fff;font-weight:600;cursor:pointer}
+    .hint{font-size:12px;color:#9a9ab0}
+    .card{background:#1a1a2e;border:1px solid #2d3748;border-radius:12px;padding:14px;margin:12px 0}
+    a{color:#fc8181}
+    .ok{color:#48bb78;font-size:13px;margin-top:8px}
+    code{font-size:11px;background:#0f0f1a;padding:2px 6px;border-radius:4px}
+  </style>
+</head>
+<body>
+  <h1>PyriteShield AI</h1>
+  <p class="hint">Use <b>any</b> API key you have access to. There is <b>no shared key built in</b> (that would be stolen from the extension and billed to one person).</p>
+
+  <div class="card hint">
+    <b>Presets that often work without a card</b> (availability depends on your region/account):
+    <ul>
+      <li><b>Groq</b> — OpenAI-compatible · <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a></li>
+      <li><b>OpenRouter</b> — many models · <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></li>
+      <li><b>Google Gemini</b> — if available · <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
+      <li><b>Custom</b> — any host that speaks OpenAI <code>/v1/chat/completions</code></li>
+    </ul>
+  </div>
+
+  <label>Provider</label>
+  <select id="provider">
+    <option value="openai_compatible">OpenAI-compatible (Groq, OpenRouter, OpenAI, …)</option>
+    <option value="gemini">Google Gemini (API key as query param)</option>
+  </select>
+
+  <label>Base URL (OpenAI-compatible only)</label>
+  <input id="baseUrl" placeholder="https://api.groq.com/openai/v1">
+
+  <div class="hint" style="margin-top:8px">Quick fill for OpenAI-compatible providers:</div>
+  <div style="display:flex;gap:8px;margin-top:6px">
+    <button type="button" class="preset-btn" data-preset="groq" style="flex:1;margin-top:0;background:#1a1a2e;border:1px solid #2d3748;font-weight:500">Groq</button>
+    <button type="button" class="preset-btn" data-preset="openrouter" style="flex:1;margin-top:0;background:#1a1a2e;border:1px solid #2d3748;font-weight:500">OpenRouter</button>
+    <button type="button" class="preset-btn" data-preset="openai" style="flex:1;margin-top:0;background:#1a1a2e;border:1px solid #2d3748;font-weight:500">OpenAI</button>
+  </div>
+
+  <label>API key</label>
+  <input id="apiKey" type="password" placeholder="Stored only on this device" autocomplete="off">
+
+  <label>Model id</label>
+  <input id="model" placeholder="llama-3.3-70b-versatile">
+
+  <label>Default translate language</label>
+  <input id="targetLang" placeholder="English">
+
+  <button type="button" id="save">Save</button>
+  <div class="ok" id="msg"></div>
+
+  <p class="hint" style="margin-top:20px">YouTube video summary uses the <b>real caption/transcript</b> when YouTube provides one (not the title alone). If a video has no captions, enable “Show transcript” or choose a captioned video.</p>
+  <script src="options.js"></script>
+</body>
+</html>

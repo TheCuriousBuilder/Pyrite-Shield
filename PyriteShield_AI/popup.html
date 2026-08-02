@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body{width:300px;margin:0;font-family:system-ui,sans-serif;background:#0f0f1a;color:#e8e8e8}
+    main{padding:14px} h1{font-size:15px;margin:0 0 8px}
+    p{font-size:12px;color:#9a9ab0;line-height:1.45}
+    button,.link{display:block;width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px solid #2d3748;background:#1a1a2e;color:#e8e8e8;text-decoration:none;text-align:center;cursor:pointer;font-size:12px;box-sizing:border-box}
+    button.primary{background:#e53e3e;border-color:#e53e3e;font-weight:600}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>✦ PyriteShield AI</h1>
+    <p>Any page: highlight or <b>Summarize page</b>.<br>
+       YouTube: <b>Summarize video</b> uses captions/transcript when available.</p>
+    <button class="primary" id="opts">Set API key</button>
+    <button id="sumPage">Summarize this page</button>
+    <button id="sumVideo">Summarize this video</button>
+    <a class="link" href="https://console.groq.com/keys" target="_blank" rel="noopener">Free-ish key: Groq</a>
+    <a class="link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter keys</a>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
