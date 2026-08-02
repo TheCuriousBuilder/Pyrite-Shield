@@ -77,7 +77,6 @@
           return tracks;
         } catch (_) {}
       }
-      // fallback: window copy if exposed
       if (window.ytInitialPlayerResponse) {
         return (
           window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer
@@ -90,8 +89,6 @@
 
   async function fetchTrackText(url) {
     try {
-      const u = url.replace(/&fmt=\w+/, '') + (url.includes('fmt=') ? '' : '') ;
-      // prefer srv3/json3 if possible
       let fetchUrl = url;
       if (!/fmt=/.test(fetchUrl)) fetchUrl += '&fmt=srv3';
       const res = await fetch(fetchUrl);
@@ -111,7 +108,6 @@
           .filter(Boolean)
           .join(' ');
       }
-      // json3
       try {
         const data = JSON.parse(body);
         const events = data.events || [];
@@ -142,7 +138,6 @@
     }
   }
 
-  /** Sample a few frames from the playing <video> as data URLs (for optional multimodal later / context note) */
   function sampleVideoFrames(count = 3) {
     try {
       const video = document.querySelector('video.html5-main-video, video');
@@ -154,17 +149,8 @@
       canvas.height = h;
       const ctx = canvas.getContext('2d');
       const frames = [];
-      const dur = video.duration;
-      if (!dur || !isFinite(dur)) {
-        ctx.drawImage(video, 0, 0, w, h);
-        frames.push(canvas.toDataURL('image/jpeg', 0.6));
-        return frames;
-      }
-      const t0 = video.currentTime;
-      // Can't seek synchronously mid-flight easily without async; capture current frame only here
       ctx.drawImage(video, 0, 0, w, h);
       frames.push(canvas.toDataURL('image/jpeg', 0.6));
-      video.currentTime = t0;
       return frames;
     } catch (_) {
       return [];
@@ -180,7 +166,6 @@
 
     if (!transcript || transcript.length < 80) {
       const tracks = captionTracksFromPage();
-      // prefer English
       tracks.sort((a, b) => {
         const ae = /^en/i.test(a.languageCode || '') ? 0 : 1;
         const be = /^en/i.test(b.languageCode || '') ? 0 : 1;
@@ -197,22 +182,105 @@
       transcript = await fetchTimedTextList(id);
     }
 
-    const frames = sampleVideoFrames(1);
-    const frameNote = frames.length
-      ? `\n\n[Player frame captured at current position — spoken content below is the primary source.]`
-      : '';
-
     if (transcript && transcript.length > 80) {
-      return `Title: ${title}\nVideo ID: ${id}\n${frameNote}\n\nFULL SPOKEN TRANSCRIPT:\n${transcript}`;
+      return { text: `Title: ${title}\nVideo ID: ${id}\n\nFULL SPOKEN TRANSCRIPT:\n${transcript}`, hadTranscript: true };
     }
 
-    return (
-      `Title: ${title}\nVideo ID: ${id}\n\n` +
-      `No captions/transcript could be downloaded for this video.\n` +
-      `Description:\n${desc || '(none)'}\n\n` +
-      `Tip: open the … menu → Show transcript on YouTube, then try again; or pick a video with captions enabled.`
-    );
+    return {
+      text:
+        `Title: ${title}\nVideo ID: ${id}\n\n` +
+        `No captions/transcript could be downloaded for this video.\n` +
+        `Description:\n${desc || '(none)'}\n\n` +
+        `Tip: open the … menu → Show transcript on YouTube, then try again; or pick a video with captions enabled.`,
+      hadTranscript: false
+    };
   }
+
+  // ================================================================
+  // Minimal, safe markdown renderer (headers, bold, italic, code,
+  // lists, links) — LLM output is untrusted text, so everything is
+  // HTML-escaped first and only our own generated tags are inserted.
+  // ================================================================
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function renderMarkdown(md) {
+    const escaped = escapeHtml(md);
+    const lines = escaped.split('\n');
+    let html = '';
+    let inList = null; // 'ul' | 'ol' | null
+    let inCodeBlock = false;
+    let codeBuf = [];
+
+    function closeList() {
+      if (inList) { html += `</${inList}>`; inList = null; }
+    }
+
+    for (let raw of lines) {
+      if (/^```/.test(raw.trim())) {
+        if (inCodeBlock) {
+          html += `<pre><code>${codeBuf.join('\n')}</code></pre>`;
+          codeBuf = [];
+          inCodeBlock = false;
+        } else {
+          closeList();
+          inCodeBlock = true;
+        }
+        continue;
+      }
+      if (inCodeBlock) { codeBuf.push(raw); continue; }
+
+      const line = raw.trim();
+      if (!line) { closeList(); html += '<br>'; continue; }
+
+      const h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) {
+        closeList();
+        const level = h[1].length;
+        html += `<h${level}>${inlineMd(h[2])}</h${level}>`;
+        continue;
+      }
+
+      const ol = line.match(/^\d+[.)]\s+(.*)$/);
+      const ul = line.match(/^[-*•]\s+(.*)$/);
+      if (ol) {
+        if (inList !== 'ol') { closeList(); html += '<ol>'; inList = 'ol'; }
+        html += `<li>${inlineMd(ol[1])}</li>`;
+        continue;
+      }
+      if (ul) {
+        if (inList !== 'ul') { closeList(); html += '<ul>'; inList = 'ul'; }
+        html += `<li>${inlineMd(ul[1])}</li>`;
+        continue;
+      }
+      closeList();
+      html += `<p>${inlineMd(line)}</p>`;
+    }
+    closeList();
+    if (inCodeBlock && codeBuf.length) html += `<pre><code>${codeBuf.join('\n')}</code></pre>`;
+    return html;
+  }
+
+  function inlineMd(s) {
+    return s
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  }
+
+  // ================================================================
+  // Main panel
+  // ================================================================
+  const MODE_LABELS = {
+    explain: 'Explain', rewrite: 'Rewrite', summarize: 'Summarize',
+    translate: 'Translate', ask: 'Ask', summarize_page: 'Page summary',
+    summarize_video: 'Video summary'
+  };
+
+  let activePort = null;
+  let currentTab = 'result'; // 'result' | 'history'
 
   function ensurePanel() {
     let root = document.getElementById('psai-root');
@@ -221,22 +289,50 @@
     root.id = 'psai-root';
     root.innerHTML = `
       <div class="psai-panel">
-        <div class="psai-hd"><strong>✦ PyriteShield AI</strong><button type="button" class="psai-x">×</button></div>
-        <div class="psai-modes">
-          <button data-mode="explain" type="button">Explain</button>
-          <button data-mode="rewrite" type="button">Rewrite</button>
-          <button data-mode="summarize" type="button">Summarize</button>
-          <button data-mode="translate" type="button">Translate</button>
-          <button data-mode="ask" type="button">Ask</button>
-          <button data-mode="summarize_page" type="button">Page</button>
-          <button data-mode="summarize_video" type="button">Video</button>
+        <div class="psai-hd">
+          <strong>✦ PyriteShield AI</strong>
+          <div class="psai-hd-tabs">
+            <button type="button" class="psai-tab active" data-tab="result">Result</button>
+            <button type="button" class="psai-tab" data-tab="history">History</button>
+          </div>
+          <button type="button" class="psai-x" title="Close">×</button>
         </div>
-        <textarea class="psai-ask" placeholder="Question or target language (optional)" rows="2"></textarea>
-        <div class="psai-out">Highlight text, or use Page / Video.</div>
-        <div class="psai-actions"><button type="button" class="psai-copy">Copy</button><span class="psai-status"></span></div>
+        <div class="psai-body-result">
+          <div class="psai-modes">
+            <button data-mode="explain" type="button">Explain</button>
+            <button data-mode="rewrite" type="button">Rewrite</button>
+            <button data-mode="summarize" type="button">Summarize</button>
+            <button data-mode="translate" type="button">Translate</button>
+            <button data-mode="ask" type="button">Ask</button>
+            <button data-mode="summarize_page" type="button">Page</button>
+            <button data-mode="summarize_video" type="button">Video</button>
+          </div>
+          <textarea class="psai-ask" placeholder="Question or target language (optional)" rows="2"></textarea>
+          <div class="psai-out">Highlight text, or use Page / Video.</div>
+          <div class="psai-actions">
+            <button type="button" class="psai-copy">Copy</button>
+            <button type="button" class="psai-download">Save .md</button>
+            <button type="button" class="psai-cancel" hidden>Cancel</button>
+            <span class="psai-status"></span>
+            <button type="button" class="psai-done">Done</button>
+          </div>
+        </div>
+        <div class="psai-body-history" hidden>
+          <div class="psai-history-list"></div>
+          <div class="psai-actions">
+            <button type="button" class="psai-clear-history">Clear history</button>
+          </div>
+        </div>
       </div>`;
     document.documentElement.appendChild(root);
+
     root.querySelector('.psai-x').onclick = () => root.classList.remove('open');
+    root.querySelector('.psai-done').onclick = () => root.classList.remove('open');
+
+    root.querySelectorAll('.psai-tab').forEach((btn) => {
+      btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
+    });
+
     root.querySelector('.psai-copy').onclick = async () => {
       try {
         await navigator.clipboard.writeText(root.querySelector('.psai-out').innerText);
@@ -245,10 +341,75 @@
         setStatus('Copy failed');
       }
     };
+    root.querySelector('.psai-download').onclick = () => {
+      const text = root.querySelector('.psai-out').innerText;
+      if (!text || text === 'Working…') return;
+      const blob = new Blob([text], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pyrite-ai-${Date.now()}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    root.querySelector('.psai-cancel').onclick = () => {
+      if (activePort) { activePort.postMessage({ type: 'CANCEL' }); }
+      setStatus('Cancelled');
+      root.querySelector('.psai-cancel').hidden = true;
+    };
+    root.querySelector('.psai-clear-history').onclick = async () => {
+      await chrome.runtime.sendMessage({ type: 'PSAI_CLEAR_HISTORY' });
+      renderHistory([]);
+    };
+
     root.querySelectorAll('.psai-modes button').forEach((btn) => {
       btn.addEventListener('click', () => run(btn.getAttribute('data-mode')));
     });
     return root;
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    const root = document.getElementById('psai-root');
+    if (!root) return;
+    root.querySelectorAll('.psai-tab').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === tab));
+    root.querySelector('.psai-body-result').hidden = tab !== 'result';
+    root.querySelector('.psai-body-history').hidden = tab !== 'history';
+    if (tab === 'history') loadHistory();
+  }
+
+  async function loadHistory() {
+    const history = await chrome.runtime.sendMessage({ type: 'PSAI_GET_HISTORY' });
+    renderHistory(history || []);
+  }
+
+  function renderHistory(history) {
+    const root = document.getElementById('psai-root');
+    if (!root) return;
+    const list = root.querySelector('.psai-history-list');
+    if (!history.length) {
+      list.innerHTML = '<div class="psai-empty">No history yet.</div>';
+      return;
+    }
+    list.innerHTML = history.map((h) => `
+      <div class="psai-hist-item" data-id="${h.id}">
+        <div class="psai-hist-meta">
+          <span class="psai-hist-mode">${MODE_LABELS[h.mode] || h.mode}</span>
+          <span class="psai-hist-time">${new Date(h.time).toLocaleString()}</span>
+        </div>
+        <div class="psai-hist-snip">${escapeHtml((h.output || '').slice(0, 140))}${(h.output || '').length > 140 ? '…' : ''}</div>
+      </div>
+    `).join('');
+    list.querySelectorAll('.psai-hist-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        const entry = history.find((h) => h.id === el.getAttribute('data-id'));
+        if (!entry) return;
+        switchTab('result');
+        const out = root.querySelector('.psai-out');
+        out.innerHTML = renderMarkdown(entry.output || '');
+        setStatus(`From history — ${new Date(entry.time).toLocaleString()}`);
+      });
+    });
   }
 
   function setStatus(m) {
@@ -259,15 +420,24 @@
   function showPanel() {
     const root = ensurePanel();
     root.classList.add('open');
+    switchTab('result');
     return root;
+  }
+
+  function togglePanel() {
+    const root = ensurePanel();
+    if (root.classList.contains('open')) root.classList.remove('open');
+    else showPanel();
   }
 
   async function run(mode, selectionText) {
     const root = showPanel();
     const out = root.querySelector('.psai-out');
+    const cancelBtn = root.querySelector('.psai-cancel');
     const extra = root.querySelector('.psai-ask').value.trim();
     out.textContent = 'Working…';
     setStatus('');
+    cancelBtn.hidden = false;
 
     let text = (selectionText || getSelectionText() || '').trim();
 
@@ -275,50 +445,148 @@
       if (mode === 'summarize_video') {
         if (!isYouTube()) {
           out.textContent = 'Open a YouTube watch page first.';
+          cancelBtn.hidden = true;
           return;
         }
         out.textContent = 'Reading video captions / transcript…';
-        text = await collectVideoContext();
+        const ctx = await collectVideoContext();
+        text = ctx.text;
+        if (!ctx.hadTranscript) setStatus('No transcript found — using title/description only');
       } else if (mode === 'summarize_page') {
         text = getPageText().slice(0, 100000);
       } else if (!text) {
         out.textContent = 'Highlight text first, or use Page / Video.';
+        cancelBtn.hidden = true;
         return;
       }
 
       if (mode === 'ask' && !extra) {
         out.textContent = 'Type a question above, then click Ask.';
+        cancelBtn.hidden = true;
         return;
       }
 
-      const res = await chrome.runtime.sendMessage({
-        type: 'PSAI_GENERATE',
-        payload: { mode, text, extra, pageUrl: location.href }
-      });
-      if (!res?.ok) {
-        out.textContent = res?.error || 'Failed';
-        setStatus('Error');
-        return;
-      }
-      out.textContent = res.text;
-      setStatus('Done');
+      out.textContent = '';
+      streamRun(mode, text, extra, out, cancelBtn);
     } catch (e) {
       out.textContent = e.message || String(e);
       setStatus('Error');
+      cancelBtn.hidden = true;
     }
   }
 
+  function streamRun(mode, text, extra, out, cancelBtn) {
+    if (activePort) { try { activePort.disconnect(); } catch (_) {} }
+    const port = chrome.runtime.connect({ name: 'psai-stream' });
+    activePort = port;
+    let raw = '';
+    let gotAnyChunk = false;
+
+    port.onMessage.addListener((msg) => {
+      if (msg.type === 'CHUNK') {
+        gotAnyChunk = true;
+        raw += msg.text;
+        out.innerHTML = renderMarkdown(raw);
+        out.scrollTop = out.scrollHeight;
+      } else if (msg.type === 'DONE') {
+        out.innerHTML = renderMarkdown(msg.text);
+        setStatus('Done');
+        cancelBtn.hidden = true;
+        activePort = null;
+      } else if (msg.type === 'ERROR') {
+        if (!gotAnyChunk) out.textContent = msg.error;
+        else out.innerHTML += `<p style="color:#fc8181">⚠ ${escapeHtml(msg.error)}</p>`;
+        setStatus('Error');
+        cancelBtn.hidden = true;
+        activePort = null;
+      } else if (msg.type === 'CANCELLED') {
+        setStatus('Cancelled');
+        cancelBtn.hidden = true;
+        activePort = null;
+      }
+    });
+    port.onDisconnect.addListener(() => { activePort = null; });
+    port.postMessage({ type: 'START', payload: { mode, text, extra, pageUrl: location.href } });
+  }
+
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg?.type === 'PSAI_RUN') run(msg.mode, msg.selectionText || '');
+    if (msg?.type !== 'PSAI_RUN') return;
+    if (msg.mode === 'toggle') { togglePanel(); return; }
+    run(msg.mode, msg.selectionText || '');
   });
 
+  // ================================================================
+  // Floating action button
+  // ================================================================
   if (!document.getElementById('psai-fab')) {
     const fab = document.createElement('button');
     fab.id = 'psai-fab';
     fab.type = 'button';
-    fab.title = 'PyriteShield AI';
+    fab.title = 'PyriteShield AI (Alt+Shift+A)';
     fab.textContent = '✦';
-    fab.onclick = () => showPanel();
+    fab.onclick = () => togglePanel();
     document.documentElement.appendChild(fab);
   }
+
+  // ================================================================
+  // Auto-appearing selection mini-toolbar
+  // ================================================================
+  let miniToolbar = null;
+
+  function removeMiniToolbar() {
+    miniToolbar?.remove();
+    miniToolbar = null;
+  }
+
+  function showMiniToolbar(x, y, text) {
+    removeMiniToolbar();
+    miniToolbar = document.createElement('div');
+    miniToolbar.id = 'psai-mini';
+    miniToolbar.innerHTML = `
+      <button type="button" data-mode="explain">Explain</button>
+      <button type="button" data-mode="summarize">Summarize</button>
+      <button type="button" data-mode="rewrite">Rewrite</button>
+      <button type="button" data-mode="translate">Translate</button>
+    `;
+    document.documentElement.appendChild(miniToolbar);
+    const rect = miniToolbar.getBoundingClientRect();
+    const left = Math.min(Math.max(8, x - rect.width / 2), window.innerWidth - rect.width - 8);
+    const top = Math.max(8, y - rect.height - 10);
+    miniToolbar.style.left = `${left + window.scrollX}px`;
+    miniToolbar.style.top = `${top + window.scrollY}px`;
+    miniToolbar.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('mousedown', (e) => {
+        // mousedown (not click) so it fires before the selection is cleared by the ensuing click
+        e.preventDefault();
+        run(btn.getAttribute('data-mode'), text);
+        removeMiniToolbar();
+      });
+    });
+  }
+
+  document.addEventListener('mouseup', (e) => {
+    if (e.target.closest('#psai-mini, #psai-root, #psai-fab')) return;
+    setTimeout(() => {
+      const sel = window.getSelection();
+      const text = sel ? sel.toString().trim() : '';
+      if (text && text.length > 2 && sel.rangeCount) {
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (rect.width || rect.height) {
+          showMiniToolbar(rect.left + rect.width / 2, rect.top, text);
+          return;
+        }
+      }
+      removeMiniToolbar();
+    }, 0);
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('#psai-mini')) removeMiniToolbar();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      removeMiniToolbar();
+      document.getElementById('psai-root')?.classList.remove('open');
+    }
+  });
 })();

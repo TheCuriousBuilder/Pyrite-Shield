@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PyriteShield AI",
-  "version": "1.1.0",
-  "description": "Explain, rewrite, summarize, translate, or ask about any page. Summarize YouTube videos from real captions/transcripts.",
+  "version": "2.5.2",
+  "description": "Explain, rewrite, summarize, translate, or ask about any page — with a selection toolbar, streaming answers, history, and YouTube video summaries from real captions.",
   "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
@@ -26,5 +26,23 @@
     "js": ["content.js"],
     "css": ["content.css"],
     "run_at": "document_idle"
-  }]
+  }],
+  "commands": {
+    "explain-selection": {
+      "suggested_key": { "default": "Alt+Shift+E" },
+      "description": "Explain the highlighted text"
+    },
+    "summarize-selection": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Summarize the highlighted text"
+    },
+    "summarize-page": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Summarize the current page"
+    },
+    "toggle-panel": {
+      "suggested_key": { "default": "Alt+Shift+A" },
+      "description": "Open/close the PyriteShield AI panel"
+    }
+  }
 }
